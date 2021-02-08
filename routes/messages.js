@@ -1,3 +1,9 @@
+const Router = require("express").Router;
+const router = new Router();
+const ExpressError = require("../expressError");
+const Message = require("../models/message");
+const { ensureLoggedIn } = require("../middleware/auth");
+
 /** GET /:id - get detail of message.
  *
  * => {message: {id,
@@ -11,6 +17,14 @@
  *
  **/
 
+router.get("/:id", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const message = await Message.get(req.params.id);
+    return res.json(message);
+  } catch (err) {
+    return next(err);
+  }
+});
 
 /** POST / - post message.
  *
@@ -19,6 +33,18 @@
  *
  **/
 
+router.post("/", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const to_username = req.body.to_username;
+    const body = req.body.body;
+    const from_username = req.body.username;
+    const result = await Message.create({ from_username, to_username, body });
+
+    return res.json({ message: result });
+  } catch (err) {
+    return next(err);
+  }
+});
 
 /** POST/:id/read - mark message as read:
  *
@@ -28,3 +54,17 @@
  *
  **/
 
+router.post("/:id/read", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const id = req.params.id;
+    const message = await Message.markRead(id);
+    if (!message) {
+      throw new ExpressError("No such message", 404);
+    }
+    return res.json({ message });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+module.exports = router;
