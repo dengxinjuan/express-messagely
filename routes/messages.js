@@ -19,8 +19,15 @@ const { ensureLoggedIn } = require("../middleware/auth");
 
 router.get("/:id", ensureLoggedIn, async function (req, res, next) {
   try {
-    const message = await Message.get(req.params.id);
-    return res.json(message);
+    const username = req.user.username;
+    const result = await Message.get(req.params.id);
+    if (
+      result.to_user.username !== username &&
+      result.from_user.username !== username
+    ) {
+      throw new ExpressError("Cannot read this message", 401);
+    }
+    return res.json({ message: result });
   } catch (err) {
     return next(err);
   }
@@ -35,12 +42,13 @@ router.get("/:id", ensureLoggedIn, async function (req, res, next) {
 
 router.post("/", ensureLoggedIn, async function (req, res, next) {
   try {
-    const to_username = req.body.to_username;
-    const body = req.body.body;
-    const from_username = req.body.username;
-    const result = await Message.create({ from_username, to_username, body });
+    let msg = await Message.create({
+      from_username: req.user.username,
+      to_username: req.body.to_username,
+      body: req.body.body,
+    });
 
-    return res.json({ message: result });
+    return res.json({ message: msg });
   } catch (err) {
     return next(err);
   }
@@ -56,11 +64,14 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
 
 router.post("/:id/read", ensureLoggedIn, async function (req, res, next) {
   try {
-    const id = req.params.id;
-    const message = await Message.markRead(id);
-    if (!message) {
-      throw new ExpressError("No such message", 404);
+    let username = req.user.username;
+    let msg = await Message.get(req.params.id);
+
+    if (msg.to_user.username !== username) {
+      throw new ExpressError("Cannot set this message to read", 401);
     }
+    let message = await Message.markRead(req.params.id);
+
     return res.json({ message });
   } catch (err) {
     return next(err);
